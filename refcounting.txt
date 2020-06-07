@@ -1,0 +1,65 @@
+
+Based on LLVM libcxx implementation
+
+ControlBlock contains:
+- weak counter
+- shared counter
+
+both weak and shared count intialized at 1
+
+copy shared_ptr => add_shared
+reset shared_ptr => release_shared
+create weak_ptr => add_weak
+copy weak_ptr => add_weak
+reset weak_ptr => release_weak
+obtain shared_ptr from weak_ptr => lock
+
+When shared counter reaches 0, data is deleted
+  and weak ptr is deacreased by 1
+It's like as long as there is at least one shared ptr, there is also one more weak ptr
+This makes sure the weak_ptr count never reaches 0 before shared_ptr count reaches 0
+
+When weak counter reaches 0, control block is deleted
+
+Initializing weak count at 1 simplify what we have to do once one of the counters reach 0
+  (need to check the other)
+  May also prevent races ?
+
+add_shared(): ++s
+
+
+
+add_weak(): ++w
+
+release_shared(): if --s == 0:
+		     delete data
+		     release_weak()
+
+release_weak(): if --w == 0:
+		   delete control block
+
+For release weak, can add a check: (if w == 1) before,
+this avoid doing the last decrement, which may be expensive to do,
+and also may create false sharing issues.
+Same idea cannot be applied for shared, because the value of 0 must be written,
+to tell weak pointers that data is deleted
+
+
+lock():
+	if (s == 0)
+	   return false
+	++s
+	return true
+
+lock must be atomic, which give the following implem:
+lock():
+	while (s):
+	   int val = s
+	   if cas(&s, val, val + 1):
+	      return true
+	return false
+
+
+In the LLVM implementation, both counters start at 0 instead of 1, and count down to -1 instead of 0
+  (It doesn't change anything at the algo)
+  I couldn't find any infos about why this choice, maybe 0 initializing the refcounters helps generate faster / smaller constructor
