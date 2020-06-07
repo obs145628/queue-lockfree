@@ -39,7 +39,10 @@ public:
       typename std::enable_if<std::is_convertible<Y *, T *>::value>::type * = 0)
       : my_shared_ptr(raw_constructor{}, ptr,
                       new ControledPtr<Y, Deleter>(ptr, std::move(deleter))) {
-    _build_weak_this();
+
+    constexpr bool has_weak_this =
+        std::is_convertible<T *, enable_my_shared_from_this<T> *>::value;
+    _build_weak_this<has_weak_this>();
   }
 
   template <class Y>
@@ -151,7 +154,11 @@ public:
   static my_shared_ptr wrapper_make_shared(Args &&... args) {
     auto ctrl = new ControledInplace<T>(std::forward<Args>(args)...);
     auto res = my_shared_ptr{raw_constructor(), ctrl->get_ptr(), ctrl};
-    res._build_weak_this();
+
+    constexpr bool has_weak_this =
+        std::is_convertible<T *, enable_my_shared_from_this<T> *>::value;
+
+    res.template _build_weak_this<has_weak_this>();
     return res;
   }
 
@@ -166,19 +173,15 @@ private:
   my_shared_ptr(const raw_constructor &, T *ptr, ControlBlock *cb)
       : _ptr(ptr), _cb(cb) {}
 
-  template <bool has_weak_this = std::is_convertible<
-                T *, enable_my_shared_from_this<T> *>::value>
-  typename std::enable_if<has_weak_this, void>::type _build_weak_this() {
+  template <bool has_weak_this> void _build_weak_this() {}
+
+  template <> void _build_weak_this<true>() {
     if (!use_count())
       return;
 
     auto ptr = static_cast<enable_my_shared_from_this<T> *>(_ptr);
     ptr->_this_weak = my_shared_ptr<T>(*this);
   }
-
-  template <bool has_weak_this = std::is_convertible<
-                T *, enable_my_shared_from_this<T> *>::value>
-  typename std::enable_if<!has_weak_this, void>::type _build_weak_this() {}
 };
 
 template <class T, class U>

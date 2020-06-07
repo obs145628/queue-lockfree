@@ -20,4 +20,4 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 add_subdirectory(tests)
 
 add_subdirectory(my_shared_ptr)
-
+add_subdirectory(stack_cc)
